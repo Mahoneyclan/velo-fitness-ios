@@ -106,11 +106,10 @@ final class StravaAuth: NSObject, ASWebAuthenticationPresentationContextProvidin
     }
 
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        guard let scene = UIApplication.shared.connectedScenes
-                .compactMap({ $0 as? UIWindowScene }).first else {
-            return UIWindow()   // unreachable in a running app
-        }
-        return scene.windows.first ?? UIWindow(windowScene: scene)
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        if let window = scenes.first?.windows.first { return window }
+        if let scene  = scenes.first { return UIWindow(windowScene: scene) }
+        fatalError("No connected UIWindowScene — cannot present Strava auth")
     }
 
     private struct TokenResponse: Decodable {
