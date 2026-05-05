@@ -23,3 +23,6 @@ DerivedData/
 
 # Credentials — never commit real secrets
 **/Strava/Secrets.swift
+
+# Local-only docs (kept on disk, not published)
+SETUP.md

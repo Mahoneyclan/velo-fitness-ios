@@ -142,20 +142,20 @@ enum RideAnalytics {
     // MARK: Heatmap
 
     static func heatmap(_ rides: [Ride]) -> [HeatCell] {
-        let cal = Calendar.current
+        let cal = Calendar(identifier: .gregorian)
         return Dictionary(grouping: rides) { r -> String in
             let y = cal.component(.year, from: r.date)
             let w = cal.component(.weekOfYear, from: r.date)
             return "\(y)-\(w)"
-        }.compactMap { key, cellRides -> HeatCell? in
-            let parts = key.split(separator: "-")
+        }.compactMap { entry -> HeatCell? in
+            let parts = entry.key.split(separator: "-")
             guard parts.count == 2,
                   let year = Int(parts[0]),
                   let week = Int(parts[1]) else { return nil }
             return HeatCell(
                 year: "\(year)",
                 week: week,
-                distanceKm: cellRides.map(\.distanceKm).sum
+                distanceKm: entry.value.map(\.distanceKm).reduce(0, +)
             )
         }
     }

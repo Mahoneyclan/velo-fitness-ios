@@ -4,19 +4,26 @@ struct GarminImportView: View {
     @Environment(RideStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
-    @State private var email:      String = GarminAuth.shared.savedEmail ?? ""
-    @State private var password:   String = ""
-    @State private var isSigningIn = false
-    @State private var loginError: String?
+    @State private var email:           String = GarminAuth.shared.savedEmail ?? ""
+    @State private var password:        String = ""
+    @State private var isSigningIn      = false
+    @State private var loginError:      String?
+    @State private var warningAccepted  = false
 
     private var auth: GarminAuth { GarminAuth.shared }
 
     var body: some View {
         NavigationStack {
             Group {
-                if auth.isAuthenticated { syncView } else { loginForm }
+                if !warningAccepted && !auth.isAuthenticated {
+                    betaWarning
+                } else if auth.isAuthenticated {
+                    syncView
+                } else {
+                    loginForm
+                }
             }
-            .navigationTitle("Garmin Sync")
+            .navigationTitle("Garmin Sync  β")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -30,6 +37,69 @@ struct GarminImportView: View {
             }
         }
         .task { await auth.checkSession() }
+    }
+
+    // MARK: - Beta warning
+
+    private var betaWarning: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 20) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 52))
+                    .foregroundStyle(.yellow)
+
+                Text("Garmin Sync — Beta Feature")
+                    .font(.title2.bold())
+
+                VStack(alignment: .leading, spacing: 12) {
+                    warningRow(icon: "network",
+                               text: "Uses an unofficial Garmin Connect API. Garmin has not authorised this integration and it is not affiliated with or endorsed by Garmin Ltd.")
+                    warningRow(icon: "wrench.and.screwdriver",
+                               text: "May stop working at any time if Garmin changes their sign-in flow.")
+                    warningRow(icon: "lock.shield",
+                               text: "Your Garmin password is sent directly to Garmin's servers and is never stored by this app.")
+                    warningRow(icon: "person.badge.key",
+                               text: "Multi-factor authentication (MFA) must be disabled on your Garmin account.")
+                }
+                .padding(.horizontal, 8)
+
+                Text("If you already sync to Strava, use Strava sync instead — it uses an official API.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(24)
+            .background(Color(.secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .padding(.horizontal, 24)
+
+            Spacer()
+
+            VStack(spacing: 12) {
+                Button("I Understand — Continue") {
+                    warningAccepted = true
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.yellow)
+
+                Button("Cancel") { dismiss() }
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.bottom, 40)
+        }
+    }
+
+    private func warningRow(icon: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+        }
     }
 
     // MARK: - Login form
@@ -72,7 +142,7 @@ struct GarminImportView: View {
             }
 
             Section {
-                Text("Note: Multi-factor authentication must be disabled for direct sign-in.")
+                Text("MFA must be disabled on your Garmin account. Your password is transmitted directly to Garmin and never stored by this app.")
                     .font(.caption2).foregroundStyle(.tertiary)
             }
         }
