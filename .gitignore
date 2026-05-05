@@ -22,4 +22,4 @@ DerivedData/
 *.swp
 
 # Credentials — never commit real secrets
-Sources/Integrations/Strava/Secrets.swift
+**/Strava/Secrets.swift
