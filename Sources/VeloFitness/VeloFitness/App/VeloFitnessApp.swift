@@ -2,14 +2,24 @@ import SwiftUI
 
 @main
 struct VeloFitnessApp: App {
-    @State private var store = RideStore()
+    @State private var rideStore = RideStore()
+    @State private var boxingStore = BoxingStore()
 
     var body: some Scene {
         WindowGroup {
-            DashboardView()
-                .environment(store)
-                .onAppear { store.load() }
-                .preferredColorScheme(.dark)
+            TabView {
+                DashboardView()
+                    .tabItem { Label("Cycling", systemImage: "bicycle") }
+                BoxingDashboardView()
+                    .tabItem { Label("Boxing", systemImage: "figure.boxing") }
+            }
+            .environment(rideStore)
+            .environment(boxingStore)
+            .onAppear {
+                rideStore.load()
+                boxingStore.load()
+            }
+            .preferredColorScheme(.dark)
         }
     }
 }

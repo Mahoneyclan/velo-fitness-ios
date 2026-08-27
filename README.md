@@ -1,6 +1,12 @@
 # Velo Fitness iOS
 
-A native iPad cycling dashboard that pulls your full ride history from **Strava** and **Garmin Connect** and visualises it with Swift Charts — a complete port of the [Velo Fitness Python dashboard](https://github.com/Mahoneyclan/velo_fitness).
+A native, fully self-contained iPad multi-sport dashboard — no server, no Python, no Mac
+required to keep it running. A cycling tab pulls your full ride history from **Strava**
+and **Garmin Connect** (a complete port of the
+[Velo Fitness Python dashboard](https://github.com/Mahoneyclan/velo_fitness)), and a boxing
+tab pulls punch metrics directly from Garmin, parsing the FIT file's developer fields
+(recorded by the f3b Boxing/Kick Boxing Connect IQ app) with a small hand-written FIT
+parser built into the app. Both tabs render with Swift Charts and sync entirely on-device.
 
 ---
 
@@ -39,6 +45,35 @@ Both sources are deduplicated automatically: rides on the same date within 10% d
 ### Filters
 - **Time range** — All time · This year · Last 3 / 6 / 12 months · Last 2 / 3 / 5 years
 - **Ride type** — All · Outdoor only · Indoor only · Commutes only · No commutes
+
+### Boxing tab
+Tap **Sync** on the Boxing tab (reuses the Garmin session already signed in from the
+Cycling tab — no separate login) to fetch boxing/kickboxing activities, download each
+one's original FIT file directly from Garmin, and parse punch metrics out of its
+developer fields on-device. Everything — auth, download, parsing, storage — happens on
+the phone/iPad; nothing runs anywhere else.
+
+| Chart | What it shows |
+|-------|---------------|
+| Punch Rate Trend | Per-session avg punches/min scatter + 28-day rolling average |
+| Punch Force Trend | Per-session max punch force scatter + 28-day rolling average, all-time PB in the stat row |
+| Heart Rate Trend | Per-session avg HR scatter + 28-day rolling average |
+| Jab / Hook / Cross Mix | Grouped bar of punch-type counts per session |
+| Jab / Hook / Cross Share | 100%-stacked column of punch-type mix per session |
+| Session Duration | Bar of minutes trained per session |
+
+Punch force is shown in whichever unit `BoxingSettings.punchForceUnit`
+(`Models/BoxingSettings.swift`) is set to — it is **not** auto-detected or converted
+between units. The FIT file's own `units` string for every force field is just the app's
+static label `"G,N,Kg | lbs"`, not the unit actually selected on the watch — there is no
+way to recover that from the file. Set `BoxingSettings.punchForceUnit` to whatever your
+f3b app's on-device setting actually is.
+
+Field names (`pRate`, `tPunch`, `mForce`, `Force`, `vForce`, etc.) were verified
+byte-for-byte against a real f3b export before being hardcoded into
+`FITBoxingParser.swift` — not guessed. If a future f3b firmware update renames them,
+the parser will simply stop finding those fields (sessions still sync, with those
+metrics blank) rather than crashing.
 
 ### Data quality
 Matches the Python dashboard exactly:
@@ -97,9 +132,22 @@ In Xcode: target → **Info** → **URL Types** → **+**
 | Identifier | velofitness |
 | URL Schemes | velofitness |
 
-### 4. Build and run
+### 4. Add the Boxing tab's source files
 
-Select an iPad Simulator or your device, press **⌘R**, and tap the **⟳ Sync** button.
+`Models/BoxingSession.swift`, `Models/BoxingStore.swift`, `Models/BoxingAnalytics.swift`,
+`Models/BoxingSettings.swift`, `Integrations/Garmin/FITBoxingParser.swift`, and everything
+under `Views/Boxing/` were added on disk but aren't part of the `.xcodeproj` yet — drag
+them into the project navigator (same as step 1) so they compile into the VeloFitness
+target.
+
+No iCloud capability, no entitlements, no second account setup — boxing syncs the same
+way cycling does, straight from Garmin.
+
+### 5. Build and run
+
+Select an iPad Simulator or your device, press **⌘R**. On the Cycling tab, tap **⟳ Sync**
+→ **Sync Garmin** and sign in once — the Boxing tab's **⟳ Sync** button reuses that same
+session to pull boxing activities.
 
 ---
 
@@ -114,7 +162,11 @@ Sources/
 ├── Models/
 │   ├── Ride.swift                 # common ride schema, Codable with rides.json
 │   ├── RideStore.swift            # @Observable — load/save/sync/filter
-│   └── RideAnalytics.swift        # pure analytics: rolling avgs, CTL/ATL/TSB, etc.
+│   ├── RideAnalytics.swift        # pure analytics: rolling avgs, CTL/ATL/TSB, etc.
+│   ├── BoxingSession.swift        # boxing schema, built from FITBoxingParser output
+│   ├── BoxingStore.swift          # @Observable — syncs Garmin, parses FIT, local storage
+│   ├── BoxingAnalytics.swift      # trend series + jab/hook/cross mix
+│   └── BoxingSettings.swift       # punch-force display unit (can't be read from the FIT file)
 │
 ├── Integrations/
 │   ├── Strava/
@@ -123,12 +175,13 @@ Sources/
 │   │   └── Secrets.swift          # ← gitignored
 │   └── Garmin/
 │       ├── GarminAuth.swift       # garth SSO: cookie → OAuth1 → OAuth2
-│       └── GarminClient.swift     # paginated activity fetch (100/page)
+│       ├── GarminClient.swift     # paginated activity fetch (100/page) + FIT download
+│       └── FITBoxingParser.swift  # hand-written FIT binary parser (dev fields) + zip reader
 │
 └── Views/
-    ├── DashboardView.swift         # root view — toolbar, stat cards, chart grid
+    ├── DashboardView.swift         # cycling root view — toolbar, stat cards, chart grid
     ├── Components/
-    │   └── StatCardView.swift      # stat card + ChartCard reusable wrappers
+    │   └── StatCardView.swift      # stat card + ChartCard reusable wrappers (shared by both tabs)
     ├── Charts/                     # one file per chart, all use Swift Charts
     │   ├── WeeklyVolumeChart.swift
     │   ├── MonthlyVolumeChart.swift
@@ -139,9 +192,31 @@ Sources/
     │   └── HistogramChart.swift
     ├── FitnessTrendView.swift
     ├── PersonalBestsView.swift
-    └── Import/
-        ├── StravaImportView.swift  # OAuth flow + one-tap full sync
-        └── GarminImportView.swift  # login form + one-tap full sync
+    ├── Import/
+    │   ├── StravaImportView.swift  # OAuth flow + one-tap full sync
+    │   └── GarminImportView.swift  # login form + one-tap full sync
+    └── Boxing/
+        ├── BoxingDashboardView.swift    # boxing root view — stat cards, chart grid, session list
+        ├── BoxingTrendChart.swift       # punch rate / punch force / HR trend (TrendPoint-based)
+        ├── PunchMixChart.swift          # jab/hook/cross grouped bar (raw counts)
+        ├── PunchMixShareChart.swift     # jab/hook/cross 100%-stacked column (share)
+        ├── BoxingVolumeChart.swift      # session duration bar
+        └── BoxingSessionListView.swift  # session list + detail view
+```
+
+Boxing data flow (entirely on-device, same Garmin session as cycling):
+```
+Garmin Connect (activity list) ──► GarminClient.activities()  ─┐
+                                                                 ├─► filter isBoxing
+Garmin Connect (FIT download)  ──► GarminClient.downloadOriginalFIT() ─┘
+                                              │
+                                       ZipReader.unzipFirstEntry()
+                                              │
+                                     FITBoxingParser.parse()  (dev fields)
+                                              │
+                              BoxingStore ──► boxing_sessions.json (Documents/)
+                                              │
+                                       Boxing tab (Swift Charts)
 ```
 
 ### Data flow
